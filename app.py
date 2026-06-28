@@ -1,6 +1,5 @@
 from flask import Flask, request, jsonify
 import yt_dlp
-import os
 
 app = Flask(__name__)
 
@@ -8,29 +7,27 @@ app = Flask(__name__)
 def generate():
     query = request.args.get('q')
     if not query:
-        return jsonify({"error": "Query parameter 'q' is missing"}), 400
+        return jsonify({"error": "Query parameter missing"}), 400
     
-    # yt-dlp की सेटिंग्स जो इसे एक 'Bot' के बजाय 'User' की तरह दिखाती हैं
+    # Vercel के लिए 'quiet' मोड और सही 'user_agent' जरूरी है
     ydl_opts = {
         'format': 'bestaudio/best',
         'noplaylist': True,
         'quiet': True,
-        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+        'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
     }
     
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        try:
-            # ytsearch: के जरिए सर्च किया
-            info = ydl.extract_info(f"ytsearch:{query}", download=False)
-            if 'entries' in info and info['entries']:
-                video_url = info['entries'][0]['webpage_url']
-                return jsonify({"link": video_url})
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            # ytsearch1 इस्तेमाल कर रहे हैं ताकि केवल पहला परिणाम मिले
+            results = ydl.extract_info(f"ytsearch1:{query}", download=False)
+            if 'entries' in results and results['entries']:
+                video = results['entries'][0]
+                return jsonify({"link": video['webpage_url']})
             else:
-                return jsonify({"error": "No results found"}), 404
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
+                return jsonify({"error": "No result found"}), 404
+    except Exception as e:
+        # यहाँ साफ़ पता चलेगा कि YouTube ने ब्लॉक किया है या कुछ और
+        return jsonify({"error": "Server error", "details": str(e)}), 500
 
-if __name__ == '__main__':
-    # रेंडर के PORT का इस्तेमाल करें
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host='0.0.0.0', port=port)
+# Vercel के लिए app को ग्लोबल रखना जरूरी है
